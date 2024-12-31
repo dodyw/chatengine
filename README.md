@@ -1,6 +1,6 @@
 # Chatbot API
 
-A FastAPI-based chatbot API that uses Azure OpenAI through LangChain.
+A FastAPI-based chatbot API that uses Azure OpenAI's official Python library.
 
 ## Capabilities
 
@@ -11,6 +11,25 @@ A FastAPI-based chatbot API that uses Azure OpenAI through LangChain.
 - Real-time message processing
 - Secure credential management through environment variables
 - Easy-to-use API with comprehensive documentation
+
+## Session Management
+
+The API uses a simple but effective in-memory session management system:
+
+- Each conversation is identified by a unique `session_id`
+- Sessions maintain their chat history, including system, user, and assistant messages
+- Sessions persist until explicitly cleared or server restart
+- Each session starts with a system message that sets the AI's behavior
+- Multiple sessions can run concurrently with isolated histories
+
+Example session flow:
+1. Start a new chat with a session ID
+2. Send messages within the same session to maintain context
+3. Retrieve history at any time
+4. Clear history to start fresh while keeping the session
+5. Use different session IDs for different conversations
+
+Note: Current implementation uses in-memory storage, so histories are cleared on server restart.
 
 ## Setup
 
@@ -24,10 +43,32 @@ cp .env.example .env
 ```
 
 2. Update the following variables in `.env`:
-- AZURE_OPENAI_API_KEY: Your Azure OpenAI API key
-- AZURE_OPENAI_API_BASE: Your Azure OpenAI endpoint
-- AZURE_OPENAI_API_VERSION: API version (default is 2023-05-15)
-- AZURE_OPENAI_DEPLOYMENT_NAME: Your Azure OpenAI deployment name
+```env
+# AI Provider (azure, openai, groq)
+AI_PROVIDER=azure
+
+# OpenAI API Key (required for all providers)
+OPENAI_API_KEY=your_api_key_here
+
+# API Base URL
+# For Azure: https://your-resource.openai.azure.com
+# For OpenAI: https://api.openai.com/v1
+# For Groq: https://api.groq.com/openai/v1
+OPENAI_API_BASE=your_api_base_here
+
+# Azure-specific settings (only needed if AI_PROVIDER=azure)
+AZURE_OPENAI_API_VERSION=2024-02-15-preview
+AZURE_OPENAI_DEPLOYMENT_NAME=your_deployment_name
+
+# Model name for non-Azure providers (e.g., gpt-4, llama2-70b-4096)
+OPENAI_MODEL_NAME=gpt-4
+```
+
+Note: 
+- For Azure OpenAI, make sure your deployment is properly set up in your Azure resource
+- The API version should match your Azure OpenAI resource's supported version
+- The deployment name should match your model deployment in Azure OpenAI
+- When using other providers, only `OPENAI_API_KEY`, `OPENAI_API_BASE`, and `OPENAI_MODEL_NAME` are needed
 
 ## Running the Application
 
@@ -115,6 +156,47 @@ Expected response:
 
 ## API Documentation
 
+### Endpoints
+
+1. `GET /`
+   - Welcome endpoint
+   - Returns: `{"Hello": "Welcome to the Chat API"}`
+
+2. `POST /chat`
+   - Send a message to the chatbot
+   - Request body:
+     ```json
+     {
+       "messages": [
+         {
+           "role": "user",
+           "content": "Your message here"
+         }
+       ],
+       "session_id": "unique_session_id"  // Optional, defaults to "default"
+     }
+     ```
+   - Returns: `{"response": "AI's response"}`
+
+3. `GET /chat/history/{session_id}`
+   - Get chat history for a specific session
+   - Returns:
+     ```json
+     {
+       "history": [
+         {"role": "system", "content": "..."},
+         {"role": "user", "content": "..."},
+         {"role": "assistant", "content": "..."}
+       ]
+     }
+     ```
+
+4. `DELETE /chat/history/{session_id}`
+   - Clear chat history for a specific session
+   - Returns: `{"message": "History cleared for session {session_id}"}`
+
+### Interactive Documentation
+
 Once the server is running, you can access:
 - Interactive API documentation: http://localhost:8080/docs
 - Alternative documentation: http://localhost:8080/redoc
@@ -123,8 +205,7 @@ Once the server is running, you can access:
 
 The application uses:
 - FastAPI for the web framework
-- LangChain for AI model integration
-- Azure OpenAI for the language model
+- OpenAI library for Azure OpenAI integration
 - Python-dotenv for environment variables
 - Uvicorn as the ASGI server
 

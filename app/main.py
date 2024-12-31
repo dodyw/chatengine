@@ -3,20 +3,26 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict
-from langchain_openai import AzureChatOpenAI
-from langchain.memory import ChatMessageHistory
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from openai import AzureOpenAI, OpenAI
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Debug prints
-print("Environment variables:")
-print(f"AZURE_OPENAI_API_KEY: {os.getenv('AZURE_OPENAI_API_KEY')}")
-print(f"AZURE_OPENAI_API_BASE: {os.getenv('AZURE_OPENAI_API_BASE')}")
-print(f"AZURE_OPENAI_API_VERSION: {os.getenv('AZURE_OPENAI_API_VERSION')}")
-print(f"AZURE_OPENAI_DEPLOYMENT_NAME: {os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME')}")
+# Initialize AI client based on provider
+provider = os.getenv("AI_PROVIDER", "azure").lower()  # Default to azure if not specified
+
+if provider == "azure":
+    client = AzureOpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        azure_endpoint=os.getenv("OPENAI_API_BASE")
+    )
+else:  # OpenAI or other providers using OpenAI's API format
+    client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        base_url=os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")  # Default to OpenAI's API
+    )
 
 app = FastAPI()
 
@@ -29,7 +35,7 @@ app.add_middleware(
 )
 
 # Store chat histories for each session
-chat_histories: Dict[str, ChatMessageHistory] = {}
+chat_histories: Dict[str, List[Dict[str, str]]] = {}
 
 class Message(BaseModel):
     role: str
@@ -42,12 +48,13 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
 
-def get_history(session_id: str = "default") -> ChatMessageHistory:
+def get_history(session_id: str = "default") -> List[Dict[str, str]]:
     if session_id not in chat_histories:
-        history = ChatMessageHistory()
-        # Add a system message to help with context
-        history.add_message(SystemMessage(content="You are a helpful AI assistant. Remember to keep track of user details they share with you, like their name."))
-        chat_histories[session_id] = history
+        # Initialize with system message
+        chat_histories[session_id] = [{
+            "role": "system",
+            "content": "You are a helpful AI assistant. Remember to keep track of user details they share with you, like their name."
+        }]
     return chat_histories[session_id]
 
 @app.get("/")
@@ -57,32 +64,36 @@ def read_root():
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
-        # Initialize Azure OpenAI chat model
-        chat = AzureChatOpenAI(
-            openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-            azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_API_BASE"),
-            openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            temperature=0.7,
-        )
-
         # Get or create history for this session
         history = get_history(request.session_id)
         
         # Add the new message to history
-        last_message = request.messages[-1].content
-        history.add_user_message(last_message)
-
-        # Create messages list from history
-        messages = history.messages
+        last_message = {
+            "role": request.messages[-1].role,
+            "content": request.messages[-1].content
+        }
+        history.append(last_message)
 
         # Get response from the model
-        response = chat.invoke(messages)
+        if provider == "azure":
+            model = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        else:
+            model = os.getenv("OPENAI_MODEL_NAME", "gpt-4")  # Default to gpt-4 if not specified
+            
+        response = client.chat.completions.create(
+            model=model,
+            messages=history,
+            temperature=0.7,
+        )
         
-        # Add the AI's response to history
-        history.add_ai_message(response.content)
+        # Extract and store the assistant's response
+        assistant_message = {
+            "role": "assistant",
+            "content": response.choices[0].message.content
+        }
+        history.append(assistant_message)
         
-        return ChatResponse(response=response.content)
+        return ChatResponse(response=assistant_message["content"])
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -91,17 +102,7 @@ async def chat(request: ChatRequest):
 async def get_chat_history(session_id: str):
     try:
         history = get_history(session_id)
-        formatted_history = []
-        
-        for message in history.messages:
-            if isinstance(message, HumanMessage):
-                formatted_history.append({"role": "user", "content": message.content})
-            elif isinstance(message, AIMessage):
-                formatted_history.append({"role": "assistant", "content": message.content})
-            elif isinstance(message, SystemMessage):
-                formatted_history.append({"role": "system", "content": message.content})
-                
-        return {"history": formatted_history}
+        return {"history": history}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -109,7 +110,11 @@ async def get_chat_history(session_id: str):
 async def clear_chat_history(session_id: str):
     try:
         if session_id in chat_histories:
-            chat_histories[session_id] = ChatMessageHistory()
+            # Reset history with system message
+            chat_histories[session_id] = [{
+                "role": "system",
+                "content": "You are a helpful AI assistant. Remember to keep track of user details they share with you, like their name."
+            }]
             return {"message": f"History cleared for session {session_id}"}
         return {"message": f"No history found for session {session_id}"}
     except Exception as e:
