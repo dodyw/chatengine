@@ -1,37 +1,12 @@
-"""
-FastAPI server with chat endpoint for web search and browsing.
-"""
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from agents import search_web, browse_web
+from app.agents import search_web, browse_web
 from typing import Optional
-import re
 
 app = FastAPI()
 
 class ChatMessage(BaseModel):
     message: str
-
-def extract_exchange_rate(text: str) -> Optional[str]:
-    # Look for patterns like "1 USD = X IDR" or "1.00 US dollar = X Indonesian rupiah"
-    patterns = [
-        r'1(?:\.00)?\s*(?:USD|US dollar)\s*=\s*([\d,\.]+)\s*(?:IDR|Indonesian rupiah)',
-        r'1(?:\.00)?\s*(?:USD|US dollar)\s*=\s*([\d,\.]+)',
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            rate = match.group(1)
-            # Clean up the rate
-            rate = rate.replace(',', '')
-            try:
-                rate_float = float(rate)
-                return f"1 USD = IDR {rate_float:,.2f}"
-            except ValueError:
-                continue
-    return None
 
 @app.post("/chat")
 async def chat(chat_message: ChatMessage):
@@ -45,14 +20,15 @@ async def chat(chat_message: ChatMessage):
             if result['status'] == 'success':
                 for item in result['results']:
                     text = item['text'].lower()
-                    # Try to extract a clean exchange rate
-                    rate = extract_exchange_rate(text)
-                    if rate:
+                    rate_lines = [line.strip() for line in text.split('\n') 
+                                if ('usd' in line.lower() or 'dollar' in line.lower()) 
+                                and ('idr' in line.lower() or 'rupiah' in line.lower())
+                                and any(x in line.lower() for x in ['=', 'rate', 'price'])]
+                    if rate_lines:
                         return {
                             "status": "success",
-                            "message": f"Current Exchange Rate:\n{rate}",
-                            "source": item['url'],
-                            "timestamp": "Data from XE.com"
+                            "message": f"Exchange Rate Information:\n{rate_lines[0]}",
+                            "source": item['url']
                         }
             
             return {
@@ -80,4 +56,4 @@ async def chat(chat_message: ChatMessage):
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) 

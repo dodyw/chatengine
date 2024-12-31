@@ -1,0 +1,80 @@
+{
+	"info": {
+		"_postman_id": "your_postman_id",
+		"name": "Chat Engine API",
+		"description": "API collection for Chat Engine with web search and browsing capabilities",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Chat",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"message\": \"what is the current exchange rate of 1 USD to IDR?\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "Send a message to chat with the AI. Supports:\n- Exchange rate queries (e.g., 'what is the current exchange rate of 1 USD to IDR?')\n- Web browsing (e.g., 'browse https://example.com')"
+			},
+			"response": [
+				{
+					"name": "Exchange Rate Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"what is the current exchange rate of 1 USD to IDR?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/chat"
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "{\n    \"status\": \"success\",\n    \"message\": \"Current Exchange Rate:\\n1 USD = IDR 16,142.17\",\n    \"source\": \"https://www.xe.com/currencyconverter/convert/?Amount=1&From=USD&To=IDR\",\n    \"timestamp\": \"Data from XE.com\"\n}"
+				},
+				{
+					"name": "Web Browse Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"browse https://example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/chat"
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "{\n    \"status\": \"success\",\n    \"message\": \"Title: Example Domain\\n\\nContent: Example Domain Example Domain This domain is for use in illustrative examples in documents...\"\n}"
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000"
+		}
+	]
+} 

@@ -1,241 +1,145 @@
-# Chatbot API
+# Chat Engine
 
-A FastAPI-based chatbot API that uses Azure OpenAI's official Python library.
+A powerful chat engine with web search and browsing capabilities.
 
-## Capabilities
+## Features
 
-- Stateful chat conversations with Azure OpenAI's GPT models
-- Session-based chat history management
-- Multiple concurrent chat sessions support
-- RESTful API endpoints for chat interactions
-- Real-time message processing
-- Secure credential management through environment variables
-- Easy-to-use API with comprehensive documentation
-
-## Session Management
-
-The API uses a simple but effective in-memory session management system:
-
-- Each conversation is identified by a unique `session_id`
-- Sessions maintain their chat history, including system, user, and assistant messages
-- Sessions persist until explicitly cleared or server restart
-- Each session starts with a system message that sets the AI's behavior
-- Multiple sessions can run concurrently with isolated histories
-
-Example session flow:
-1. Start a new chat with a session ID
-2. Send messages within the same session to maintain context
-3. Retrieve history at any time
-4. Clear history to start fresh while keeping the session
-5. Use different session IDs for different conversations
-
-Note: Current implementation uses in-memory storage, so histories are cleared on server restart.
+- Chat with AI using Azure OpenAI
+- Web search functionality using Google Custom Search API
+- Web browsing and content extraction
+- Real-time exchange rate information
+- Clean and structured API responses
 
 ## Setup
 
-### Requirements
-- Python 3.11 or higher
-
-### Configuration
-1. Copy `.env.example` to `.env` and fill in your Azure OpenAI credentials:
+1. Clone the repository:
 ```bash
-cp .env.example .env
+git clone https://github.com/yourusername/chatengine.git
+cd chatengine
 ```
 
-2. Update the following variables in `.env`:
-```env
-# AI Provider (azure, openai, groq)
-AI_PROVIDER=azure
-
-# OpenAI API Key (required for all providers)
-OPENAI_API_KEY=your_api_key_here
-
-# API Base URL
-# For Azure: https://your-resource.openai.azure.com
-# For OpenAI: https://api.openai.com/v1
-# For Groq: https://api.groq.com/openai/v1
-OPENAI_API_BASE=your_api_base_here
-
-# Azure-specific settings (only needed if AI_PROVIDER=azure)
-AZURE_OPENAI_API_VERSION=2024-02-15-preview
-AZURE_OPENAI_DEPLOYMENT_NAME=your_deployment_name
-
-# Model name for non-Azure providers (e.g., gpt-4, llama2-70b-4096)
-OPENAI_MODEL_NAME=gpt-4
-```
-
-Note: 
-- For Azure OpenAI, make sure your deployment is properly set up in your Azure resource
-- The API version should match your Azure OpenAI resource's supported version
-- The deployment name should match your model deployment in Azure OpenAI
-- When using other providers, only `OPENAI_API_KEY`, `OPENAI_API_BASE`, and `OPENAI_MODEL_NAME` are needed
-
-## Running the Application
-
-1. Create and activate a virtual environment:
+2. Create and activate a virtual environment:
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-2. Install dependencies:
+3. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Start the server:
+4. Set up environment variables in `.env`:
+```env
+# Azure OpenAI Configuration
+AI_PROVIDER=azure
+OPENAI_API_KEY=your_api_key
+OPENAI_API_BASE=your_api_base
+AZURE_OPENAI_API_VERSION=2024-10-21
+AZURE_OPENAI_DEPLOYMENT_NAME=your_deployment_name
+
+# Google Custom Search API credentials
+GOOGLE_API_KEY=your_google_api_key
+GOOGLE_CSE_ID=your_search_engine_id
+```
+
+5. Start the server:
 ```bash
-uvicorn app.main:app --reload --port 8080
+cd app
+uvicorn main:app --reload
 ```
 
-The API will be available at http://localhost:8080
+## API Usage
 
-## Testing the API
+### Chat Endpoint
 
-You can test the API using curl commands or any HTTP client. Here are some examples:
+`POST /chat`
 
-### Using Postman
+Send messages to interact with the AI. The chat endpoint now supports:
 
-A Postman collection is provided for easy testing of all API endpoints:
-
-1. Download [Postman](https://www.postman.com/downloads/)
-2. Import the `postman_collection.json` file:
-   - Open Postman
-   - Click "Import" button
-   - Drop the `postman_collection.json` file or browse to select it
-   - Click "Import"
-3. The collection includes all endpoints with example requests
-
-### 1. Test the Welcome Endpoint
-```bash
-curl http://localhost:8080/
-```
-Expected response:
-```json
-{"Hello": "Welcome to the Chat API"}
-```
-
-### 2. Send a Chat Message
-```bash
-curl -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Hello, how are you?"}], "session_id": "test1"}'
-```
-Expected response:
+1. Exchange Rate Queries:
 ```json
 {
-    "response": "AI response here..."
+    "message": "what is the current exchange rate of 1 USD to IDR?"
 }
 ```
 
-### 3. Get Chat History
-```bash
-curl http://localhost:8080/chat/history/test1
-```
-Expected response:
+Response:
 ```json
 {
-    "history": [
-        {"role": "system", "content": "..."},
-        {"role": "user", "content": "..."},
-        {"role": "assistant", "content": "..."}
-    ]
+    "status": "success",
+    "message": "Current Exchange Rate:\n1 USD = IDR 16,142.17",
+    "source": "https://www.xe.com/currencyconverter/convert/?Amount=1&From=USD&To=IDR",
+    "timestamp": "Data from XE.com"
 }
 ```
 
-### 4. Clear Chat History
-```bash
-curl -X DELETE http://localhost:8080/chat/history/test1
-```
-Expected response:
+2. Web Browsing:
 ```json
 {
-    "message": "History cleared for session test1"
+    "message": "browse https://example.com"
 }
 ```
 
-## API Documentation
+Response:
+```json
+{
+    "status": "success",
+    "message": "Title: Example Domain\n\nContent: Example Domain Example Domain This domain is for use in illustrative examples in documents..."
+}
+```
 
-### Endpoints
+## Project Structure
 
-1. `GET /`
-   - Welcome endpoint
-   - Returns: `{"Hello": "Welcome to the Chat API"}`
-
-2. `POST /chat`
-   - Send a message to the chatbot
-   - Request body:
-     ```json
-     {
-       "messages": [
-         {
-           "role": "user",
-           "content": "Your message here"
-         }
-       ],
-       "session_id": "unique_session_id"  // Optional, defaults to "default"
-     }
-     ```
-   - Returns: `{"response": "AI's response"}`
-
-3. `GET /chat/history/{session_id}`
-   - Get chat history for a specific session
-   - Returns:
-     ```json
-     {
-       "history": [
-         {"role": "system", "content": "..."},
-         {"role": "user", "content": "..."},
-         {"role": "assistant", "content": "..."}
-       ]
-     }
-     ```
-
-4. `DELETE /chat/history/{session_id}`
-   - Clear chat history for a specific session
-   - Returns: `{"message": "History cleared for session {session_id}"}`
-
-### Interactive Documentation
-
-Once the server is running, you can access:
-- Interactive API documentation: http://localhost:8080/docs
-- Alternative documentation: http://localhost:8080/redoc
+```
+chatengine/
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   └── agents/
+│       ├── __init__.py
+│       └── web/
+│           ├── __init__.py
+│           ├── browser.py
+│           ├── search.py
+│           └── utils.py
+├── requirements.txt
+├── README.md
+└── chatengine.postman_collection.json
+```
 
 ## Development
 
-The application uses:
-- FastAPI for the web framework
-- OpenAI library for Azure OpenAI integration
-- Python-dotenv for environment variables
-- Uvicorn as the ASGI server
+The project uses FastAPI for the backend and includes several agent modules for different functionalities:
 
-## Contact
+- `agents/web/browser.py`: Web browsing and content extraction
+- `agents/web/search.py`: Google Custom Search integration
+- `agents/web/utils.py`: Common utilities for web operations
 
-For consultation and further development:
-- **Developer**: Dody Rachmat Wicaksono
-- **Email**: dody@nicecoder.com
-- **Website**: nicecoder.com
+## Testing
+
+Test the API using the included Postman collection or curl commands:
+
+```bash
+# Test exchange rate query
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "what is the current exchange rate of 1 USD to IDR?"}'
+
+# Test web browsing
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "browse https://example.com"}'
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-MIT License
-
-Copyright (c) 2024 Dody Rachmat Wicaksono
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This project is licensed under the MIT License - see the LICENSE file for details.
